@@ -1,0 +1,61 @@
+# Cryptobot configuration.
+# Safe to commit: contains rules and limits only. Secrets live in .env (never committed).
+
+mode: backtest            # backtest | paper | live  (live is only ever switched on by the owner)
+
+exchange:
+  name: bitvavo
+  quote_currency: EUR     # Bitvavo trades against EUR
+  prefer_maker_orders: true   # limit orders get the lower fee
+  fees:                   # base tier, checked 2026-10-27 - re-check before going live
+    maker: 0.0015
+    taker: 0.0025
+  slippage: 0.0010        # assumed extra cost per order in backtests (0.10 %)
+
+# Hard limits in NOK. Converted to EUR at runtime with a cautious (high) NOK/EUR rate.
+# Changing these needs a commit and a written reason in docs/CHANGELOG.md.
+limits:
+  starting_capital_nok: 2000
+  max_trade_nok: 200            # max size of one position
+  max_open_positions: 3         # max 600 NOK invested at the same time
+  max_daily_loss_nok: 60        # stop trading for the rest of the day (UTC) and send an email
+  max_total_loss_nok: 1000      # full stop: bot halts until the owner reviews and restarts it
+  stop_loss_pct: 0.03           # every position gets a stop-loss 3 % below entry
+  max_trades_per_day: 4         # across all strategies
+  min_edge_vs_fees: 3.0         # only trade if expected move >= 3x round-trip cost
+
+markets:
+  # The bot picks from the most liquid coins. Small coins, meme coins and stablecoins are excluded.
+  universe_size: 10
+  min_daily_volume_eur: 5000000
+  always_include: [BTC, ETH]
+  exclude: [USDT, USDC, EURC, DAI, DOGE, SHIB, PEPE, BONK, WIF, FLOKI]
+  timeframes: [15m, 1h, 4h]
+  benchmark: BTC                # every result is compared with buy-and-hold Bitcoin
+
+# Data safety: if anything looks wrong, do nothing.
+data_checks:
+  max_candle_age_minutes: 20    # older live data = stale, do not trade
+  max_price_jump_pct: 0.15      # a single 15m move larger than this = suspicious, pause
+  max_api_errors_in_row: 3      # after this, pause and alert
+
+strategies:
+  trend_baseline:
+    enabled: true
+  ml_gbm:
+    enabled: false              # switched on only after it beats the baseline in walk-forward tests
+  news_filter:
+    enabled: true               # pauses trading during extreme news; free RSS keyword scoring
+    ai_scoring: false           # paid AI scoring (~5-15 NOK/month) only if tests show it helps
+
+kill_switch:
+  file: STOP                    # creating a file named STOP in the project folder halts the bot
+  sell_to_cash: false           # default: stop and keep coins. Set true to also sell everything.
+
+alerts:
+  email: true                   # Gmail SMTP; address and app password are in .env
+  daily_report_utc: "06:00"     # 07:00/08:00 Norwegian time
+
+logging:
+  dir: logs
+  level: INFO
