@@ -15,7 +15,7 @@ import pandas as pd
 
 from cryptobot.backtest import run_backtest, summarize, warnings
 from cryptobot.config import Costs, Limits, load_config
-from cryptobot.download import load
+from cryptobot.download import load, timeframe_delta
 from cryptobot.features import make_features, make_label
 from cryptobot.strategies import baseline, ml_gbm
 
@@ -27,7 +27,14 @@ def main() -> None:
     parser.add_argument("--start", default="2022-01-01")
     parser.add_argument("--end", default="2024-12-31")
     parser.add_argument("--horizon", type=int, default=6, help="candles ahead the model predicts (6 x 4h = 24h)")
+    parser.add_argument("--min-hold", type=int, default=0, help="ML only: candles to hold before selling on signal")
+    parser.add_argument("--strong", action="store_true", help="use the stronger regularisation from Exp 1")
+    parser.add_argument("--min-leaf", type=int, help="override min rows per leaf (smaller datasets)")
     args = parser.parse_args()
+
+    params = dict(ml_gbm.STRONG_PARAMS) if args.strong else dict(ml_gbm.MODEL_PARAMS)
+    if args.min_leaf:
+        params["min_child_samples"] = args.min_leaf
 
     cfg = load_config()
     limits, costs = Limits.from_config(cfg), Costs.from_config(cfg)
@@ -37,9 +44,10 @@ def main() -> None:
     btc = load("BTC/EUR", args.timeframe)
     feats = {s: make_features(df, btc) for s, df in candles.items()}
     labels = {s: make_label(df, args.horizon, round_trip) for s, df in candles.items()}
-    step = pd.Timedelta(args.timeframe.replace("m", "min"))
+    step = timeframe_delta(args.timeframe)
 
-    probs, folds, importance = ml_gbm.walk_forward(feats, labels, args.start, args.end, args.horizon, step)
+    probs, folds, importance = ml_gbm.walk_forward(
+        feats, labels, args.start, args.end, args.horizon, step, params=params)
 
     print("Walk-forward folds (AUC: 0.50 = coin flip, 1.00 = perfect)")
     print(f"{'test period':<25}{'train rows':>11}{'profitable %':>14}{'train AUC':>11}{'test AUC':>10}")
@@ -55,7 +63,8 @@ def main() -> None:
             df = df.copy()
             df["signal"] = baseline.signals(df) if name == "baseline" else ml_gbm.to_signal(probs[s])
             data[s] = df
-        res = run_backtest(data, limits, costs, args.start, args.end)
+        min_hold = args.min_hold if name == "ml_gbm" else 0
+        res = run_backtest(data, limits, costs, args.start, args.end, min_hold=min_hold)
         results[name] = summarize(res, btc, limits, costs)
 
     rows = [

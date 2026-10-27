@@ -34,6 +34,17 @@ MODEL_PARAMS = dict(
     verbose=-1,
 )
 
+# Exp 1: fewer, smaller trees and bigger leaves, so the model can only learn broad patterns.
+STRONG_PARAMS = dict(
+    MODEL_PARAMS,
+    n_estimators=150,
+    num_leaves=7,
+    max_depth=3,
+    min_child_samples=300,
+    colsample_bytree=0.6,
+    reg_lambda=5.0,
+)
+
 # Fixed before seeing any results, so they cannot be tuned to fit history.
 ENTER_PROB = 0.55   # buy when the model is clearly more confident than a coin flip
 EXIT_PROB = 0.50    # sell when it no longer thinks the trade beats costs
@@ -57,6 +68,7 @@ def walk_forward(
     horizon: int,
     step: pd.Timedelta,
     fold_months: int = 6,
+    params: dict | None = None,
 ) -> tuple[dict[str, pd.Series], list[Fold], pd.Series]:
     """Returns out-of-sample probabilities per symbol, fold statistics and feature importance."""
     bounds = list(pd.date_range(start, end, freq=f"{fold_months}MS", tz="UTC"))
@@ -75,7 +87,7 @@ def walk_forward(
         known = y_train.notna()
         X_train, y_train = X_train[known], y_train[known]
 
-        model = lgb.LGBMClassifier(**MODEL_PARAMS)
+        model = lgb.LGBMClassifier(**(params or MODEL_PARAMS))
         model.fit(X_train, y_train)
 
         test_y, test_p = [], []

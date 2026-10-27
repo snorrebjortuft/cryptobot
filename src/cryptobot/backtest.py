@@ -38,6 +38,7 @@ class Position:
     entry_price: float
     stop: float
     entry_fee: float
+    held: int = 0  # candles closed while holding
 
 
 @dataclass
@@ -55,8 +56,13 @@ def run_backtest(
     costs: Costs,
     start: str | None = None,
     end: str | None = None,
+    min_hold: int = 0,
 ) -> Result:
-    """`data` maps symbol -> candles with a `signal` column (1 = want to hold, 0 = want out)."""
+    """`data` maps symbol -> candles with a `signal` column (1 = want to hold, 0 = want out).
+
+    `min_hold`: ignore sell signals until a position has been held this many candles.
+    Stop-loss and loss limits always apply.
+    """
     steps = {s: df.index.to_series().diff().mode().iloc[0] for s, df in data.items()}
     rows = {s: {t: r for t, r in zip(df.index, df.itertuples(index=False))} for s, df in data.items()}
 
@@ -136,6 +142,8 @@ def run_backtest(
             if pos and row.low <= pos.stop:
                 sell(sym, t, min(row.open, pos.stop), "stop_loss")
                 locked.add(sym)
+            elif pos:
+                pos.held += 1
 
             last_close[sym] = row.close
 
@@ -161,7 +169,7 @@ def run_backtest(
                 continue
             if row.signal == 0:
                 locked.discard(sym)
-                if sym in positions:
+                if sym in positions and positions[sym].held >= min_hold:
                     pending[sym] = "sell"
             elif sym not in positions and sym not in locked:
                 pending[sym] = "buy"

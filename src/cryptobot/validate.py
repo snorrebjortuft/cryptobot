@@ -13,14 +13,14 @@ from __future__ import annotations
 
 import pandas as pd
 
-from cryptobot.download import DATA_DIR, load
+from cryptobot.download import DATA_DIR, load, timeframe_delta
 
 JUMP_LIMIT = {"15m": 0.10, "1h": 0.15, "4h": 0.20}
 
 
 def check(symbol: str, timeframe: str) -> dict:
     df = load(symbol, timeframe)
-    step = pd.Timedelta(timeframe.replace("m", "min"))
+    step = timeframe_delta(timeframe)
 
     expected = pd.date_range(df.index[0], df.index[-1], freq=step)
     missing = expected.difference(df.index)

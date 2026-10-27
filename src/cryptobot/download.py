@@ -22,7 +22,12 @@ COLUMNS = ["timestamp", "open", "high", "low", "close", "volume"]
 
 DEFAULT_SYMBOLS = ["BTC/EUR", "ETH/EUR"]
 # Shorter timeframes produce many more candles, so they start later.
-DEFAULT_SINCE = {"4h": "2020-01-01", "1h": "2020-01-01", "15m": "2024-01-01"}
+DEFAULT_SINCE = {"1d": "2020-01-01", "4h": "2020-01-01", "1h": "2020-01-01", "15m": "2024-01-01"}
+
+
+def timeframe_delta(timeframe: str) -> pd.Timedelta:
+    """'15m', '4h', '1d' -> length of one candle."""
+    return pd.Timedelta(seconds=ccxt.Exchange.parse_timeframe(timeframe))
 
 
 def csv_path(symbol: str, timeframe: str) -> Path:

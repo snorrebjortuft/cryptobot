@@ -73,6 +73,15 @@ def test_order_cancelled_after_data_gap():
     assert res.invested.loc[df.index[3]] == 0.0  # the buy was not filled across the gap
 
 
+def test_min_hold_ignores_early_sell_signal():
+    df = candles([100.0] * 10)
+    df.iloc[2:, df.columns.get_loc("signal")] = 0   # wants out right after buying
+    res = run_backtest({"X": df}, LIMITS, NO_COSTS, min_hold=4)
+    trade = res.trades.iloc[0]
+    assert trade["entry_time"] == df.index[1]
+    assert trade["exit_time"] == df.index[5]        # held 4 candles, sold at the 5th open
+
+
 def test_max_open_positions():
     data = {s: candles([100] * 5) for s in "ABCD"}
     res = run_backtest(data, LIMITS, NO_COSTS)
