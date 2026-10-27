@@ -10,6 +10,7 @@ data/
 logs/
 reports/
 state/
+STOP
 *.db
 *.sqlite
 *.csv

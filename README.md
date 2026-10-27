@@ -9,7 +9,19 @@ and logs every decision.
 
 ## Status
 
-Work in progress: project setup (milestone M0).
+Work in progress: paper trading (milestone M3). Live trading is not implemented yet.
+See [docs/experiments.md](docs/experiments.md) for every strategy test, including the ones that failed.
+
+## Usage
+
+```bash
+python -m cryptobot.download        # fetch price history
+python -m cryptobot.backtest        # baseline backtest with fees, slippage and risk limits
+python -m cryptobot.walkforward     # ML vs baseline on unseen periods
+python -m cryptobot.bot             # paper trading on live prices
+python -m cryptobot.kill [--sell]   # kill switch
+pytest                              # run the tests
+```
 
 ## Planned features
 

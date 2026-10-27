@@ -1,7 +1,7 @@
 # Cryptobot configuration.
 # Safe to commit: contains rules and limits only. Secrets live in .env (never committed).
 
-mode: backtest            # backtest | paper | live  (live is only ever switched on by the owner)
+mode: paper               # paper | live  (live is only ever switched on by the owner)
 
 exchange:
   name: bitvavo
@@ -38,11 +38,21 @@ markets:
   timeframes: [15m, 1h, 4h]
   benchmark: BTC                # every result is compared with buy-and-hold Bitcoin
 
+bot:
+  # What the paper/live bot trades. Only coins that were backtested go here.
+  symbols: [BTC/EUR, ETH/EUR]
+  timeframe: 4h
+  poll_seconds: 60              # how often prices and stop-losses are checked
+  shadow_ml: true               # ML model predicts and logs, never trades
+  shadow_horizon: 6
+
 # Data safety: if anything looks wrong, do nothing.
 data_checks:
   max_candle_age_minutes: 20    # older live data = stale, do not trade
   max_price_jump_pct: 0.15      # a single 15m move larger than this = suspicious, pause
   max_api_errors_in_row: 3      # after this, pause and alert
+  max_spread_pct: 0.01          # bid/ask further apart than 1 % = thin market, do not trade
+  min_candles: 250              # enough history for the 200-candle average
 
 strategies:
   trend_baseline:

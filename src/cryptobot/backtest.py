@@ -24,6 +24,7 @@ import pandas as pd
 
 from cryptobot.config import Costs, Limits, load_config
 from cryptobot.download import load
+from cryptobot.risk import RiskManager
 from cryptobot.strategies import baseline
 
 MIN_ORDER_EUR = 5.0  # Bitvavo's minimum order size
@@ -75,29 +76,23 @@ def run_backtest(
     cash = limits.capital
     positions: dict[str, Position] = {}
     pending: dict[str, str] = {}          # symbol -> "buy" / "sell", to do at next open
-    locked: set[str] = set()              # stopped out: wait for signal to reset before re-entering
     last_seen: dict[str, pd.Timestamp] = {}
     last_close: dict[str, float] = {}
     trades: list[dict] = []
     equity_curve, invested_curve = {}, {}
-    blocked_days: list = []
     halted_at = None
-
-    day = None
-    day_start_equity = cash
-    trades_today = 0
-    day_blocked = False
+    risk = RiskManager(limits)
 
     def buy(sym: str, t: pd.Timestamp, price: float) -> None:
-        nonlocal cash, trades_today
+        nonlocal cash
         notional = min(limits.max_trade, cash / (1 + costs.fee))
         if notional < MIN_ORDER_EUR:
             return
         fill = price * (1 + costs.slippage)
         fee = notional * costs.fee
         cash -= notional + fee
-        positions[sym] = Position(sym, notional / fill, t, fill, fill * (1 - limits.stop_loss_pct), fee)
-        trades_today += 1
+        positions[sym] = Position(sym, notional / fill, t, fill, risk.stop_price(fill), fee)
+        risk.record_entry()
 
     def sell(sym: str, t: pd.Timestamp, price: float, reason: str) -> None:
         nonlocal cash
@@ -112,14 +107,8 @@ def run_backtest(
             "pnl": gross - fee - (pos.qty * pos.entry_price + pos.entry_fee), "reason": reason,
         })
 
-    def can_enter() -> bool:
-        return (not day_blocked and trades_today < limits.max_trades_per_day
-                and len(positions) < limits.max_open_positions)
-
     for t in timeline:
-        if t.date() != day:
-            day, trades_today, day_blocked = t.date(), 0, False
-            day_start_equity = cash + sum(p.qty * last_close[s] for s, p in positions.items())
+        risk.start_day(str(t.date()), cash + sum(p.qty * last_close[s] for s, p in positions.items()))
 
         for sym in data:
             row = rows[sym].get(t)
@@ -134,14 +123,14 @@ def run_backtest(
             if order and contiguous:
                 if order == "sell" and sym in positions:
                     sell(sym, t, row.open, "signal")
-                elif order == "buy" and sym not in positions and can_enter():
+                elif order == "buy" and sym not in positions and risk.can_enter(sym, len(positions))[0]:
                     buy(sym, t, row.open)
 
             # 2. Stop-loss during the candle. If the candle opens below the stop, we get the open.
             pos = positions.get(sym)
             if pos and row.low <= pos.stop:
                 sell(sym, t, min(row.open, pos.stop), "stop_loss")
-                locked.add(sym)
+                risk.lock(sym)
             elif pos:
                 pos.held += 1
 
@@ -152,15 +141,12 @@ def run_backtest(
         equity = cash + invested
         equity_curve[t], invested_curve[t] = equity, invested
 
-        if equity <= limits.capital - limits.max_total_loss:
+        if risk.check_equity(equity) == "halt":
             for sym in list(positions):
                 sell(sym, t, last_close[sym], "total_loss_limit")
             equity_curve[t], invested_curve[t] = cash, 0.0
             halted_at = t
             break
-        if not day_blocked and equity - day_start_equity <= -limits.max_daily_loss:
-            day_blocked = True
-            blocked_days.append(day)
 
         # Decide what to do at the next open.
         for sym in data:
@@ -168,10 +154,10 @@ def run_backtest(
             if row is None:
                 continue
             if row.signal == 0:
-                locked.discard(sym)
+                risk.unlock(sym)
                 if sym in positions and positions[sym].held >= min_hold:
                     pending[sym] = "sell"
-            elif sym not in positions and sym not in locked:
+            elif sym not in positions and sym not in risk.state.locked:
                 pending[sym] = "buy"
 
     return Result(
@@ -179,7 +165,7 @@ def run_backtest(
         invested=pd.Series(invested_curve, dtype=float),
         trades=pd.DataFrame(trades),
         halted_at=halted_at,
-        blocked_days=blocked_days,
+        blocked_days=risk.state.blocked_days,
     )
 
 
