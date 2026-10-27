@@ -1,0 +1,27 @@
+[Unit]
+Description=Cryptobot (paper trading)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=cryptobot
+Group=cryptobot
+WorkingDirectory=/opt/cryptobot
+ExecStart=/opt/cryptobot/.venv/bin/python -m cryptobot.bot
+# A crash restarts the bot after a minute. A deliberate stop (kill switch or loss limit)
+# exits cleanly and is NOT restarted until the owner runs it with --resume.
+Restart=on-failure
+RestartSec=60
+StartLimitIntervalSec=0
+
+# Hardening: the bot can only write inside its own folder.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/cryptobot
+MemoryMax=800M
+
+[Install]
+WantedBy=multi-user.target
