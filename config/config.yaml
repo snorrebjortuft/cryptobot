@@ -24,6 +24,11 @@ limits:
   max_trades_per_day: 4         # across all strategies
   min_edge_vs_fees: 3.0         # only trade if expected move >= 3x round-trip cost
 
+fx:
+  # NOK limits are divided by this to get EUR. Set higher than the real rate (~11.5-11.8)
+  # so every EUR limit ends up slightly smaller than the NOK limit, never larger.
+  nok_per_eur_cautious: 12.0
+
 markets:
   # The bot picks from the most liquid coins. Small coins, meme coins and stablecoins are excluded.
   universe_size: 10
