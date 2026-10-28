@@ -9,7 +9,8 @@ and logs every decision.
 
 ## Status
 
-Work in progress: paper trading (milestone M3). Live trading is not implemented yet.
+Work in progress: paper trading (milestone M3). Live trading is implemented but switched off;
+it needs a private switch plus the steps in [docs/go-live-checklist.md](docs/go-live-checklist.md).
 See [docs/experiments.md](docs/experiments.md) for every strategy test, including the ones that failed.
 
 ## Usage

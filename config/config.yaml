@@ -1,7 +1,8 @@
 # Cryptobot configuration.
 # Safe to commit: contains rules and limits only. Secrets live in .env (never committed).
 
-mode: paper               # paper | live  (live is only ever switched on by the owner)
+mode: paper               # always paper here. Live needs LIVE_TRADING=yes in the private .env
+                          # plus Bitvavo keys: see docs/go-live-checklist.md
 
 exchange:
   name: bitvavo

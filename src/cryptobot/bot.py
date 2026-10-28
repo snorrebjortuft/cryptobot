@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import time
 from datetime import datetime, timezone
 from logging.handlers import RotatingFileHandler
@@ -33,6 +34,7 @@ from dotenv import load_dotenv
 from cryptobot import alerts
 from cryptobot.config import Costs, Limits, load_config
 from cryptobot.download import timeframe_delta
+from cryptobot.live import LiveBroker, LiveSetupError, OrderUncertain, make_exchange
 from cryptobot.livedata import fetch_closed_candles, fetch_price
 from cryptobot.paper import STATE_DIR, PaperBroker
 from cryptobot.report import daily_report
@@ -61,20 +63,30 @@ def record_decision(**fields) -> None:
         f.write(json.dumps(fields, default=str) + "\n")
 
 
+def live_requested() -> bool:
+    """Live trading needs the owner's explicit switch in the private .env file."""
+    return os.getenv("LIVE_TRADING", "").strip().lower() == "yes"
+
+
 class Bot:
     def __init__(self, cfg: dict):
-        if cfg["mode"] != "paper":
-            raise SystemExit(f"mode '{cfg['mode']}' not supported: only paper trading exists so far.")
         self.cfg = cfg
         self.limits, self.costs = Limits.from_config(cfg), Costs.from_config(cfg)
         b = cfg["bot"]
         self.symbols, self.timeframe = b["symbols"], b["timeframe"]
         self.step_len = timeframe_delta(self.timeframe)
         self.checks = cfg["data_checks"]
-        self.exchange = ccxt.bitvavo({"enableRateLimit": True})  # public data only, no keys
-        self.broker = PaperBroker(self.costs, self.limits.capital)
-        self.risk = RiskManager.load(self.limits, STATE_DIR / "risk.json")
-        self.state_path = STATE_DIR / "bot.json"
+        if live_requested():
+            self.exchange = make_exchange()  # keys from .env; also used for prices
+            self.broker = LiveBroker(self.costs, self.limits.capital, self.exchange)
+            suffix = "_live"
+        else:
+            self.exchange = ccxt.bitvavo({"enableRateLimit": True})  # public data only, no keys
+            self.broker = PaperBroker(self.costs, self.limits.capital)
+            suffix = ""
+        self.risk_path = STATE_DIR / f"risk{suffix}.json"
+        self.risk = RiskManager.load(self.limits, self.risk_path)
+        self.state_path = STATE_DIR / f"bot{suffix}.json"
         st = json.loads(self.state_path.read_text(encoding="utf-8")) if self.state_path.exists() else {}
         self.last_candle: dict[str, str] = st.get("last_candle", {})
         self.last_report_day: str | None = st.get("last_report_day")
@@ -87,13 +99,26 @@ class Bot:
 
     def save(self) -> None:
         self.broker.save()
-        self.risk.save(STATE_DIR / "risk.json")
+        self.risk.save(self.risk_path)
         self.state_path.write_text(json.dumps(
             {"last_candle": self.last_candle, "last_report_day": self.last_report_day}, indent=2), encoding="utf-8")
 
     # -- one check ---------------------------------------------------------------------------
     def step(self) -> bool:
         """Returns False when the bot must stop."""
+        try:
+            return self._step()
+        except OrderUncertain as e:
+            # A real order may or may not have gone through: stop and let the owner check Bitvavo.
+            self.stop_everything(f"order uncertain - check Bitvavo: {e}", sell=False)
+            return False
+        except LiveSetupError as e:
+            # Bitvavo clearly refused an order (nothing happened): alert and try again next round.
+            self.on_error(str(e))
+            alerts.send("Order refused", str(e))
+            return True
+
+    def _step(self) -> bool:
         kill = kill_switch()
         if kill:
             self.stop_everything("kill switch", sell=kill == "sell" or self.cfg["kill_switch"]["sell_to_cash"])
@@ -202,8 +227,11 @@ class Bot:
                 if p is None:
                     log.error("could not get a price to sell %s: sell it manually", sym)
                     continue
-                self.broker.sell(sym, p, reason.replace(" ", "_"))
-                sold.append(sym)
+                try:
+                    self.broker.sell(sym, p, reason.split(":")[0].replace(" ", "_"))
+                    sold.append(sym)
+                except (OrderUncertain, LiveSetupError) as e:
+                    log.error("selling %s failed: %s - sell it manually in Bitvavo", sym, e)
         self.risk.state.halted, self.risk.state.halt_reason = True, reason
         self.save()
         record_decision(action="halt", reason=reason, sold=sold)
@@ -234,7 +262,13 @@ def main() -> None:
     load_dotenv()
     setup_logging()
     cfg = load_config()
-    bot = Bot(cfg)
+    try:
+        bot = Bot(cfg)
+    except LiveSetupError as e:
+        # Exit cleanly (no automatic restart loop): the owner has to fix this first.
+        log.error("live trading refused to start: %s", e)
+        alerts.send("Live trading refused to start", f"{e}\nNothing was traded. Fix it, then deploy again.")
+        return
     if args.resume:
         if KILL_FILE.exists():
             raise SystemExit("Delete the STOP file first.")
@@ -242,9 +276,12 @@ def main() -> None:
         bot.save()
         log.info("halt cleared by owner")
 
-    log.info("bot starting: mode=%s symbols=%s timeframe=%s", cfg["mode"], bot.symbols, bot.timeframe)
+    mode = bot.broker.mode
+    log.info("bot starting: mode=%s symbols=%s timeframe=%s", mode, bot.symbols, bot.timeframe)
     if not args.once:
-        alerts.send("Bot started", f"Mode {cfg['mode']}, coins {', '.join(bot.symbols)}.")
+        budget = bot.broker.cash * bot.limits.nok_per_eur
+        alerts.send(f"Bot started ({mode.upper()})", f"Mode {mode}, coins {', '.join(bot.symbols)}, "
+                    f"cash budget {budget:,.0f} kr, open positions: {', '.join(bot.broker.positions) or 'none'}.")
     while True:
         try:
             keep_going = bot.step()
