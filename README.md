@@ -1,5 +1,7 @@
 # Cryptobot
 
+[![tests](https://github.com/snorrebjortuft/cryptobot/actions/workflows/tests.yml/badge.svg)](https://github.com/snorrebjortuft/cryptobot/actions/workflows/tests.yml)
+
 A small, safety-first crypto trading bot in Python, built as a learning project.
 It trades spot crypto on [Bitvavo](https://bitvavo.com) with strict risk limits, compares every
 result with simply holding Bitcoin, and logs every decision.
