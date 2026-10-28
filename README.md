@@ -20,6 +20,7 @@ python -m cryptobot.backtest        # baseline backtest with fees, slippage and 
 python -m cryptobot.walkforward     # ML vs baseline on unseen periods
 python -m cryptobot.bot             # paper trading on live prices
 python -m cryptobot.kill [--sell]   # kill switch
+python -m cryptobot.tax --year 2027 # Norwegian tax export (FIFO, NOK), see docs/tax-norway.md
 pytest                              # run the tests
 ```
 
