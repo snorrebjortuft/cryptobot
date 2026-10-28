@@ -5,6 +5,7 @@ Each check:
   2. Fetch prices. Anything missing or odd -> do nothing this round.
   3. Stop-losses, then daily and total loss limits.
   4. When a new candle has closed: baseline decides, ML shadow model predicts and logs.
+     Before a buy, the news filter may veto it during extreme news (it never buys or sells).
   5. Once a day: email report.
 
 Logs: logs/bot.log (everything), logs/decisions.jsonl (one line per decision),
@@ -36,6 +37,7 @@ from cryptobot.config import Costs, Limits, load_config
 from cryptobot.download import timeframe_delta
 from cryptobot.live import LiveBroker, LiveSetupError, OrderUncertain, make_exchange
 from cryptobot.livedata import fetch_closed_candles, fetch_price
+from cryptobot.news import NewsFilter
 from cryptobot.paper import STATE_DIR, PaperBroker
 from cryptobot.report import daily_report
 from cryptobot.risk import KILL_FILE, RiskManager, kill_switch
@@ -96,6 +98,8 @@ class Bot:
         if b.get("shadow_ml"):
             round_trip = 2 * (self.costs.fee + self.costs.slippage)
             self.shadow = ShadowModel(self.exchange, self.symbols, self.timeframe, b["shadow_horizon"], round_trip)
+        self.news = NewsFilter.from_config(cfg)
+        self.news_alerted = False
 
     def save(self) -> None:
         self.broker.save()
@@ -202,7 +206,7 @@ class Bot:
                 alerts.send(f"Sold {sym}", f"At {fill['price_eur']:.2f} EUR, "
                             f"P/L {fill['pnl_eur'] * self.limits.nok_per_eur:+.1f} kr")
         elif not holding:
-            ok, why = self.risk.can_enter(sym, len(self.broker.positions))
+            ok, why = self.risk.can_enter(sym, len(self.broker.positions), self.news_pause())
             if ok:
                 stop = self.risk.stop_price(prices[sym] * (1 + self.costs.slippage))
                 fill = self.broker.buy(sym, prices[sym], self.limits.max_trade, stop, "signal")
@@ -217,6 +221,14 @@ class Bot:
                 action, reason = "skip", why
         record_decision(symbol=sym, candle=t, signal=signal, action=action, reason=reason, price=prices[sym])
         log.info("%s candle %s: signal %d -> %s (%s)", sym, t, signal, action, reason)
+
+    def news_pause(self) -> str | None:
+        """Only asked right before a buy. None (no pause) when the filter is off or fails."""
+        reason = self.news.pause_reason() if self.news else None
+        if reason and not self.news_alerted:
+            alerts.send("News pause", f"No new trades for now: {reason}. Stop-losses and sells stay active.")
+        self.news_alerted = reason is not None
+        return reason
 
     # -- problems ----------------------------------------------------------------------------
     def stop_everything(self, reason: str, sell: bool, prices: dict | None = None) -> None:

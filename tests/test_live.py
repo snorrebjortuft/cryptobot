@@ -142,6 +142,7 @@ def bot(tmp_path, monkeypatch):
     (tmp_path / "logs").mkdir()
     b = Bot(cfg)
     b.exchange = FakeExchange()
+    b.news.fetch = lambda url: []            # no network: quiet news
     return b
 
 

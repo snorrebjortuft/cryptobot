@@ -35,6 +35,10 @@ Every experiment, including the failures, is in [docs/experiments.md](docs/exper
 - **Risk engine** as the single gate for every order: max trade size, max open positions, stop-loss
   on every position, daily and total loss limits, trade count limit, and a kill switch.
 - **Data checks:** if prices are missing, stale or abnormal, the bot does nothing.
+- **News filter:** free RSS feeds are scored for keywords such as "hacked" or "withdrawals
+  suspended". During extreme news, new trades pause for 12 hours. The filter can only block a buy,
+  never cause a trade; stop-losses and sells stay active. If the feeds can't be read, it logs that and
+  the normal risk rules apply.
 - **Email alerts** (Gmail) for trades, errors, limit hits and a daily report.
 - **Norwegian tax export:** every trade in NOK with FIFO gains and losses, using Norges Bank
   EUR/NOK rates.
@@ -52,6 +56,7 @@ download.py ──> validate.py ──> data/ (prices, not committed)
   backtest.py              walkforward.py               bot.py (runs forever)
   (history replay)         (ML vs baseline,               │  livedata.py: live prices + checks
           │                 unseen periods)               │  strategies/: baseline, ML (shadow)
+          │                                               │  news.py: may veto buys, never trades
           └──────────┐             │                      ▼
                      ▼             ▼                  risk.py  <── kill.py (STOP file)
                  strategies/ baseline.py, ml_gbm.py       │
@@ -69,6 +74,7 @@ download.py ──> validate.py ──> data/ (prices, not committed)
 | `risk.py` | The one place that decides whether the bot may trade |
 | `paper.py`, `live.py` | Paper and live brokers with the same interface |
 | `bot.py`, `livedata.py`, `shadow.py` | Main loop, live data with checks, ML shadow logging |
+| `news.py` | News filter: pauses new trades during extreme news (RSS keyword scoring) |
 | `alerts.py`, `report.py`, `kill.py` | Email alerts, daily report, kill switch |
 | `tax.py` | Norwegian FIFO tax export in NOK |
 
@@ -113,8 +119,9 @@ python -m cryptobot.tax --year 2027 # Norwegian tax export, see docs/tax-norway.
 pytest
 ```
 
-46 tests cover the backtester (fees, slippage, no look-ahead), ML leakage checks, risk limits,
-live data checks, the live broker's safety paths and the tax calculation.
+60 tests cover the backtester (fees, slippage, no look-ahead), ML leakage checks, risk limits,
+live data checks, the news filter (including when feeds fail), the live broker's safety paths and
+the tax calculation.
 
 ## Docs
 
@@ -125,7 +132,8 @@ live data checks, the live broker's safety paths and the tax calculation.
 
 ## Not built yet
 
-- News filter that pauses trading in extreme conditions (setting exists, not implemented)
+- Optional AI scoring of news headlines (setting exists, off; keyword scoring is used)
+- News filter in backtests (no free historical news archive, so it only runs live and in paper mode)
 - Final test on the untouched 2025+ data (run once, after paper trading)
 
 ## License

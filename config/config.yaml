@@ -62,7 +62,15 @@ strategies:
     enabled: false              # switched on only after it beats the baseline in walk-forward tests
   news_filter:
     enabled: true               # pauses trading during extreme news; free RSS keyword scoring
-    ai_scoring: false           # paid AI scoring (~5-15 NOK/month) only if tests show it helps
+    ai_scoring: false           # paid AI scoring (~5-15 NOK/month) only if tests show it helps (not built yet)
+    threshold: 10               # keyword score of recent headlines that counts as extreme news
+    lookback_hours: 6           # only headlines this recent count
+    pause_hours: 12             # no new trades for this long after extreme news (sells stay active)
+    refresh_minutes: 15         # how often the feeds are read
+    feeds:                      # free RSS feeds; keywords and weights are in src/cryptobot/news.py
+      - https://www.coindesk.com/arc/outboundfeeds/rss/
+      - https://cointelegraph.com/rss
+      - https://decrypt.co/feed
 
 kill_switch:
   file: STOP                    # creating a file named STOP in the project folder halts the bot

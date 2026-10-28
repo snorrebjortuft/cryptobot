@@ -8,6 +8,7 @@ Rules:
 - total loss limit: halt, sell everything, wait for the owner
 - after a stop-loss, a coin is locked until its signal resets to "out"
 - kill switch: a file named STOP in the project folder halts everything
+- news pause (live/paper only, see news.py): no new trades while the news filter reports extreme news
 """
 
 from __future__ import annotations
@@ -50,7 +51,7 @@ class RiskManager:
         return True
 
     # -- permission to open a trade ----------------------------------------------------------
-    def can_enter(self, symbol: str, open_positions: int) -> tuple[bool, str]:
+    def can_enter(self, symbol: str, open_positions: int, news_pause: str | None = None) -> tuple[bool, str]:
         s = self.state
         if s.halted:
             return False, f"halted: {s.halt_reason}"
@@ -62,6 +63,8 @@ class RiskManager:
             return False, "max trades per day reached"
         if open_positions >= self.limits.max_open_positions:
             return False, "max open positions reached"
+        if news_pause:
+            return False, f"news pause: {news_pause}"
         return True, "ok"
 
     def record_entry(self) -> None:
