@@ -75,3 +75,31 @@ while test AUC stayed about the same. Daily candles had too little data; the mod
 not large enough to make money after costs at this size. As decided in advance, we stop tuning the
 ML model. The baseline goes forward as a cautious learning strategy. The ML model may run in
 *shadow mode* (predicting and logging, never trading) to collect real out-of-sample evidence.
+
+---
+
+## Exp 2 - final test on untouched data (run once, 2026-11-14)
+
+Baseline trend rule, unchanged (4h, close > MA50 > MA200, 200 kr per trade, 3 % stop).
+Period 2025-01-01 to 2026-11-14 (1.9 years). Data never used before this run.
+
+| | Baseline 4h |
+|---|---|
+| End value (from 2,000 kr) | 1,822 kr |
+| Total return | -8.9 % (-4.9 % / year) |
+| Hold BTC, full 2,000 kr | -33.3 % (worst drop -52.2 %) |
+| Hold BTC, same exposure | -1.7 % |
+| Worst drop | -12.3 % |
+| Trades / week | 1.6 (157 total) |
+| Win rate | 17 % |
+| Average win / loss | +11.1 kr / -3.6 kr |
+| Fees | 157 kr |
+| Stop-losses hit | 19 |
+| Halted by loss limits | no |
+
+Conclusion: no edge. The rule lost less than half as much as
+holding BTC in a falling market, but only because it was mostly
+in cash; it did worse than BTC with the same exposure. Fees
+(157 kr) were most of the loss. As decided in advance, nothing
+is tuned after this result. Live trading, if any, is a small
+learning project with an expected small loss, not a profit.

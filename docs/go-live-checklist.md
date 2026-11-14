@@ -17,9 +17,9 @@ If any box cannot be ticked, stay on paper trading.
 python -m cryptobot.backtest --start 2025-01-01 --end <today>
 ```
 
-- [ ] Result written into `docs/experiments.md`, good or bad.
-- [ ] Worst drop is within what you can accept (the 1,000 kr total limit stops the bot anyway).
-- [ ] You accept that the expected result is roughly break-even, not a profit.
+- [x] Result written into `docs/experiments.md`, good or bad.
+- [x] Worst drop is within what you can accept (the 1,000 kr total limit stops the bot anyway).
+- [x] You accept that the expected result is roughly break-even, not a profit.
 
 ## 3. Bitvavo account
 
