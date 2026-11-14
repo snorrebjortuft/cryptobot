@@ -24,6 +24,15 @@ a bot that fails safely.
   -23.5 % to -3.6 %. Stronger regularisation shrank the overfitting gap.
 - The ML model now runs in **shadow mode**: it predicts and logs, but never trades, to collect real
   out-of-sample evidence.
+- **Final test on untouched data.** The 2025-2026 data was kept unused until every choice was
+  frozen, then tested once. The baseline lost 8.9 % (1.9 years) while holding Bitcoin lost 33.3 %,
+  but only because it was mostly in cash: with the same exposure, Bitcoin did better (-1.7 %).
+  Fees (157 kr of 2,000 kr) were most of the loss. Conclusion: no edge.
+- **Paper trading** on a 24/7 server since October 2026: in a falling market (Bitcoin -16 % in the
+  first 2.5 weeks) the trend rule correctly stayed out and lost nothing. The kill-switch drill
+  found a permission bug in the remote stop command, fixed before any real money was involved.
+- **Decision: live trading stays off.** With no edge, real money would only buy an expected small
+  loss, so the bot keeps running on paper. The live broker stays in the code, tested but switched off.
 
 Every experiment, including the failures, is in [docs/experiments.md](docs/experiments.md).
 
@@ -136,7 +145,6 @@ the tax calculation.
 
 - Optional AI scoring of news headlines (setting exists, off; keyword scoring is used)
 - News filter in backtests (no free historical news archive, so it only runs live and in paper mode)
-- Final test on the untouched 2025+ data (run once, after paper trading)
 
 ## License
 
