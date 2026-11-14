@@ -30,14 +30,16 @@ if ($Action -eq "download") {
     return
 }
 
-$py = "cd /opt/cryptobot && sudo -u cryptobot .venv/bin/python -m"
+# Run a module as the bot's user. The cd must happen as that user too: /opt/cryptobot is its
+# home folder, which the ubuntu login user cannot enter.
+function Py([string]$Module) { "sudo -u cryptobot sh -c 'cd /opt/cryptobot && .venv/bin/python -m $Module'" }
 $cmd = switch ($Action) {
     "status"    { "systemctl --no-pager status cryptobot | head -n 12" }
     "logs"      { "sudo tail -n 50 /opt/cryptobot/logs/bot.log" }
     "decisions" { "sudo tail -n 20 /opt/cryptobot/logs/decisions.jsonl" }
     "trades"    { "sudo cat /opt/cryptobot/state/trades.csv 2>/dev/null || echo 'no trades yet'" }
-    "kill"      { "$py cryptobot.kill" }
-    "killsell"  { "$py cryptobot.kill --sell" }
-    "resume"    { "sudo rm -f /opt/cryptobot/STOP && $py cryptobot.bot --resume --once && sudo systemctl restart cryptobot" }
+    "kill"      { Py "cryptobot.kill" }
+    "killsell"  { Py "cryptobot.kill --sell" }
+    "resume"    { "sudo rm -f /opt/cryptobot/STOP && $(Py 'cryptobot.bot --resume --once') && sudo systemctl restart cryptobot" }
 }
 ssh -i $Key "ubuntu@$Server" $cmd
